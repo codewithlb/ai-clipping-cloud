@@ -28,19 +28,106 @@ def highlight_score(text):
     return sum(t.count(k) for k in keys) + min(len(text) / 100, 4)
 
 def download_vod(url, out):
+    """
+    Download a public video from a supported URL.
+
+    Supports:
+    - YouTube
+    - Twitch
+    - Other yt-dlp supported public sources
+    - Direct media URLs where yt-dlp can resolve them
+
+    Does not bypass CAPTCHA, bot protection, or authentication.
+    """
+
+    out.mkdir(parents=True, exist_ok=True)
+
+    output_template = str(out / "source.%(ext)s")
+
     opts = {
-        "format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-        "outtmpl": str(out / "source.%(ext)s"),
+        "format": (
+            "bestvideo[height<=1080]+bestaudio/"
+            "best[height<=1080]/best"
+        ),
+
+        "outtmpl": output_template,
+
         "merge_output_format": "mp4",
+
         "noplaylist": True,
-        "quiet": True
+
+        "quiet": True,
+        "no_warnings": True,
+
+        # Avoid unnecessary network activity
+        "retries": 3,
+        "fragment_retries": 3,
+
+        # Prefer HLS where available
+        "hls_prefer_native": True,
+
+        # Keep the downloaded file usable by ffmpeg
+        "postprocessors": [],
+
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/157.0.0.0 Safari/537.36"
+            )
+        }
     }
-    with yt_dlp.YoutubeDL(opts) as y:
-        y.download([url])
-    candidates = list(out.glob("source.*"))
-    if not candidates:
-        raise RuntimeError("Video download failed.")
-    return candidates[0]
+
+    try:
+        with yt_dlp.YoutubeDL(opts) as y:
+            info = y.extract_info(url, download=True)
+
+        candidates = [
+            p for p in out.glob("source.*")
+            if p.is_file()
+            and p.suffix.lower() not in {".part", ".ytdl"}
+        ]
+
+        if not candidates:
+            raise RuntimeError(
+                "No video file was downloaded from this URL."
+            )
+
+        # Prefer MP4 if yt-dlp produced one
+        mp4_files = [
+            p for p in candidates
+            if p.suffix.lower() == ".mp4"
+        ]
+
+        return mp4_files[0] if mp4_files else candidates[0]
+
+    except yt_dlp.utils.DownloadError as e:
+        error_text = str(e)
+
+        if "Sign in to confirm you're not a bot" in error_text:
+            raise RuntimeError(
+                "YouTube rejected the cloud server request. "
+                "This video requires YouTube authentication/verification "
+                "or a supported PO-token setup."
+            )
+
+        if "Private video" in error_text:
+            raise RuntimeError(
+                "This is a private YouTube video and cannot be accessed "
+                "without authorized authentication."
+            )
+
+        if "Video unavailable" in error_text:
+            raise RuntimeError(
+                "This video is unavailable or cannot be accessed "
+                "from the cloud server."
+            )
+
+        raise RuntimeError(
+            "Unable to download this public video: "
+            + error_text
+        )
 
 def render_clip(src, start, end, out, index):
     duration = min(45, max(12, end - start))
