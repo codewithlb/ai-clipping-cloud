@@ -50,6 +50,12 @@ def download_vod(url, out):
             "best[height<=1080]/best"
         ),
 
+          "extractor_args": {
+        "youtube": {
+            "player_client": ["web_safari"]
+        }
+    },
+
         "outtmpl": output_template,
 
         "merge_output_format": "mp4",
