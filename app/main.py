@@ -29,19 +29,89 @@ def highlight_score(text):
 
 def download_vod(url, out):
     """
-    Download a public video from a supported URL.
+    Resolve a publicly accessible video source.
 
-    Supports:
-    - YouTube
-    - Twitch
-    - Other yt-dlp supported public sources
-    - Direct media URLs where yt-dlp can resolve them
+    Supported:
+    - Public direct MP4/video URLs
+    - Public HLS (.m3u8) URLs
+    - yt-dlp supported public sources
 
-    Does not bypass CAPTCHA, bot protection, or authentication.
+    Does not bypass authentication, CAPTCHA, or bot protection.
     """
 
     out.mkdir(parents=True, exist_ok=True)
 
+    # ---------------------------------------------------------
+    # 1. Direct HLS / M3U8 URL
+    # ---------------------------------------------------------
+    if ".m3u8" in url.lower():
+        target = out / "source.mp4"
+
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i", url,
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-c:a", "aac",
+                "-movflags", "+faststart",
+                str(target)
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        if result.returncode != 0 or not target.exists():
+            raise RuntimeError(
+                "Unable to read the public HLS stream."
+            )
+
+        return target
+
+    # ---------------------------------------------------------
+    # 2. Direct MP4 / video URL
+    # ---------------------------------------------------------
+    direct_extensions = (
+        ".mp4",
+        ".webm",
+        ".mov",
+        ".mkv",
+        ".avi"
+    )
+
+    clean_url = url.lower().split("?")[0]
+
+    if clean_url.endswith(direct_extensions):
+        target = out / "source.mp4"
+
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i", url,
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-c:a", "aac",
+                "-movflags", "+faststart",
+                str(target)
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        if result.returncode != 0 or not target.exists():
+            raise RuntimeError(
+                "Unable to download the direct video URL."
+            )
+
+        return target
+
+    # ---------------------------------------------------------
+    # 3. yt-dlp supported public sources
+    # ---------------------------------------------------------
     output_template = str(out / "source.%(ext)s")
 
     opts = {
@@ -50,30 +120,17 @@ def download_vod(url, out):
             "best[height<=1080]/best"
         ),
 
-          "extractor_args": {
-        "youtube": {
-            "player_client": ["web_safari"]
-        }
-    },
-
         "outtmpl": output_template,
-
         "merge_output_format": "mp4",
-
         "noplaylist": True,
 
         "quiet": True,
         "no_warnings": True,
 
-        # Avoid unnecessary network activity
         "retries": 3,
         "fragment_retries": 3,
 
-        # Prefer HLS where available
         "hls_prefer_native": True,
-
-        # Keep the downloaded file usable by ffmpeg
-        "postprocessors": [],
 
         "http_headers": {
             "User-Agent": (
@@ -86,55 +143,41 @@ def download_vod(url, out):
     }
 
     try:
-        with yt_dlp.YoutubeDL(opts) as y:
-            info = y.extract_info(url, download=True)
-
-        candidates = [
-            p for p in out.glob("source.*")
-            if p.is_file()
-            and p.suffix.lower() not in {".part", ".ytdl"}
-        ]
-
-        if not candidates:
-            raise RuntimeError(
-                "No video file was downloaded from this URL."
-            )
-
-        # Prefer MP4 if yt-dlp produced one
-        mp4_files = [
-            p for p in candidates
-            if p.suffix.lower() == ".mp4"
-        ]
-
-        return mp4_files[0] if mp4_files else candidates[0]
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([url])
 
     except yt_dlp.utils.DownloadError as e:
         error_text = str(e)
 
         if "Sign in to confirm you're not a bot" in error_text:
             raise RuntimeError(
-                "YouTube rejected the cloud server request. "
-                "This video requires YouTube authentication/verification "
-                "or a supported PO-token setup."
-            )
-
-        if "Private video" in error_text:
-            raise RuntimeError(
-                "This is a private YouTube video and cannot be accessed "
-                "without authorized authentication."
-            )
-
-        if "Video unavailable" in error_text:
-            raise RuntimeError(
-                "This video is unavailable or cannot be accessed "
-                "from the cloud server."
+                "This source is not accessible from the cloud server. "
+                "YouTube requires authentication or verification for "
+                "this request."
             )
 
         raise RuntimeError(
-            "Unable to download this public video: "
+            "Unable to access this public source: "
             + error_text
         )
 
+    candidates = [
+        p for p in out.glob("source.*")
+        if p.is_file()
+        and p.suffix.lower() not in {".part", ".ytdl"}
+    ]
+
+    if not candidates:
+        raise RuntimeError(
+            "No playable video was obtained from this URL."
+        )
+
+    mp4_files = [
+        p for p in candidates
+        if p.suffix.lower() == ".mp4"
+    ]
+
+    return mp4_files[0] if mp4_files else candidates[0]
 def render_clip(src, start, end, out, index):
     duration = min(45, max(12, end - start))
     start = max(0, start - 3)
