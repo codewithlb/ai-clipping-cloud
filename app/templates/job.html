@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta http-equiv="refresh" content="8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Clipping Job</title>
+<style>
+body{font-family:Arial;max-width:900px;margin:40px auto;padding:20px;background:#111;color:#eee}
+.status{padding:15px;background:#222;border-radius:12px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.card{background:#1d1d1d;padding:12px;border-radius:14px}
+video{width:100%;aspect-ratio:9/16;background:#000}
+.btn{display:block;text-align:center;padding:11px;background:white;color:#111;border-radius:9px;margin-top:8px;text-decoration:none;font-weight:bold}
+.stop{background:#e53935;color:#fff;border:0;padding:12px;border-radius:9px}
+</style></head>
+<body>
+<h1>🎬 Job</h1>
+<div class="status"><b>Status:</b> {{job.status}}</div>
+{% if job.type=="live" and job.status != "stopped" and not job.status.startswith("error") %}
+<form action="/job/{{jid}}/stop" method="post"><button class="stop">Stop Live Monitoring</button></form>
+{% endif %}
+<h2>Clips: {{job.clips|length}}</h2>
+<div class="grid">
+{% for path in job.clips %}
+<div class="card">
+<video controls src="/download?path={{path}}"></video>
+<a class="btn" href="/download?path={{path}}">Download {{path.split('/')[-1]}}</a>
+</div>
+{% endfor %}
+</div>
+<p><a href="/" style="color:#fff">← New job</a></p>
+</body></html>

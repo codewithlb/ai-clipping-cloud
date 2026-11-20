@@ -1,0 +1,26 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Clipping Cloud</title>
+<style>
+body{font-family:Arial;max-width:850px;margin:40px auto;padding:20px;background:#0e0e0e;color:#eee}
+.card{background:#1b1b1b;padding:24px;border-radius:18px;margin-bottom:20px}
+input,button{width:100%;padding:14px;margin:8px 0;border-radius:10px;border:0;box-sizing:border-box}
+button{font-weight:700;cursor:pointer}.live{background:#e53935;color:white}.normal{background:white;color:#111}
+.muted{color:#aaa}
+</style></head>
+<body>
+<h1>🎬 AI Clipping Cloud</h1>
+<div class="card"><h2>🎥 Video Mode</h2>
+<p class="muted">Paste a permitted YouTube/Twitch video URL.</p>
+<form action="/generate" method="post">
+<input name="url" type="url" placeholder="Video URL" required>
+<button class="normal">Generate AI Clips</button>
+</form></div>
+<div class="card"><h2>🔴 Live Mode</h2>
+<p class="muted">Paste a permitted live-stream URL. The server monitors it and creates clips when it detects a strong moment.</p>
+<form action="/live" method="post">
+<input name="url" type="url" placeholder="Live stream URL" required>
+<button class="live">Start Live Clipping</button>
+</form></div>
+<p class="muted">Use only content you are authorized to download and clip.</p>
+</body></html>
