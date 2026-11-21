@@ -675,6 +675,69 @@ def process_vod(
         # TRANSCRIPTION
         # -------------------------------------------------
 
+              # -------------------------------------------------
+        # CHECK AUDIO STREAM
+        # -------------------------------------------------
+
+        audio_check = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=index",
+                "-of",
+                "csv=p=0",
+                str(src)
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        has_audio = bool(audio_check.stdout.strip())
+
+        rows = []
+
+        if not has_audio:
+            print(
+                "[AI] No audio stream found. "
+                "Skipping transcription.",
+                flush=True
+            )
+
+            duration = get_video_duration(src)
+
+            update_job(
+                job_id,
+                status="Creating clips..."
+            )
+
+            clips = create_fallback_clips(
+                src,
+                out,
+                duration
+            )
+
+            update_job(
+                job_id,
+                clips=clips,
+                status="done"
+            )
+
+            print(
+                f"[WORKER] DONE: {job_id}",
+                flush=True
+            )
+
+            return
+
+        # -------------------------------------------------
+        # TRANSCRIPTION
+        # -------------------------------------------------
+
         segments, _ = get_model().transcribe(
             str(src),
             beam_size=5
@@ -687,8 +750,13 @@ def process_vod(
                 s.text.strip()
             )
             for s in segments
-            if s.text.strip()
+            if s.text and s.text.strip()
         ]
+
+        print(
+            f"[AI] Transcript segments: {len(rows)}",
+            flush=True
+        )
 
         print(
             f"[AI] Transcript segments: {len(rows)}",
