@@ -42,7 +42,7 @@ def get_model():
         print("[AI] Loading Whisper model...", flush=True)
 
         _model = WhisperModel(
-            "small",
+            "tiny",
             device="cpu",
             compute_type="int8"
         )
